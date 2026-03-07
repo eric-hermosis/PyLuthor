@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "pyluthor"
+version = "0.1.0"
+description = "Markdown compiler"
+authors = ["eric-hermosis <eric.hermosis@gmail.com>"]
+license = "Apache-2.0"
+
+# Explicitly tell Poetry what to install
+packages = [
+    { include = "luthor" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.13"
+
+[tool.poetry.group.test.dependencies]
+pytest = ">=9.0.2,<10.0.0"
+mypy = ">=1.19.1,<2.0.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

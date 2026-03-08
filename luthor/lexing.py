@@ -7,13 +7,13 @@ from re import Pattern
 @dataclass(frozen=True)
 class Feature:
     name: str
-    phrase: str
+    phrase: str | None = None
 
 @dataclass(frozen=True)
 class Rule:
     feature: Feature
     pattern: Pattern[str] 
-    transform: Callable[[str], List[str]]
+    transform: Callable[[str], List[str]] = lambda string: string.split()
  
 class Lexicon:
     rules: List[Rule]
@@ -26,15 +26,9 @@ class Lexeme:
     lemma: str
     words: List[str]
 
-class Lexer:
-    
+class Lexer:    
     def __init__(self, lexicon: Lexicon) -> None:
         self.lexicon = lexicon
 
     def analyze(self, chunk: str) -> Generator[Lexeme, None, None]:
-        raise NotImplementedError("Not implemented")
-
-
-
-
-
+        yield Lexeme('TEXT', words=[chunk])

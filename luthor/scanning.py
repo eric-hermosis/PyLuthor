@@ -7,6 +7,7 @@ class Token:
     name : str
     value: str  
 
+
 class Scanner:
 
     def __init__(self, lexer: Lexer) -> None:
@@ -14,4 +15,5 @@ class Scanner:
     
     def scan(self, stream: Iterator[str]) -> Generator[Token, None, None]:
         for line in stream:
-            yield Token('TEXT', line)
+            for lexeme in self.lexer.analyze(line):
+                yield Token(lexeme.lemma, ''.join(lexeme.words))

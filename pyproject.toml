@@ -11,12 +11,13 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.13"
-
-[tool.poetry.group.test.dependencies]
-pytest = ">=9.0.2,<10.0.0"
-mypy = ">=1.19.1,<2.0.0"
+python = ">=3.12" 
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+tests = [
+    "pytest (>=9.0.2,<10.0.0)",
+    "mypy (>=1.19.1,<2.0.0)"
+]

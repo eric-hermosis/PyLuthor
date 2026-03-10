@@ -14,7 +14,7 @@ jobs:
     - name: Publish Package
       uses: celsiusnarhwal/poetry-publish@v2
       with:
-        python-version: 3.13
+        python-version: 3.12
         poetry-version: 2.3.2
         token: ${{ secrets.PYPI_TOKEN }}
         build: true

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyluthor"
-version = "0.1.0"
+version = "0.1.1"
 description = "Markdown compiler"
 authors = ["eric-hermosis <eric.hermosis@gmail.com>"]
 license = "Apache-2.0"

@@ -1,82 +1,65 @@
-from typing import Generator
-from typing import Sequence, List 
-from re import Pattern, Match
-
-class Lexeme:
-    lemma: str 
-    match: str | Match[str]
-
-    def __init__(self, lemma: str, match: str | Match[str]):
-        self.lemma = lemma
-        self.match = match
-
-class Rule:
-    name: str 
-
-    def __init__(self, pattern: Pattern[str], name: str):
-        self.pattern = pattern
-        self.name    = name 
-
-    def search(self, chunk: str) -> Lexeme:
-        match = self.pattern.search(chunk)
-        return Lexeme(self.name, match) if match else None
-
-    def match(self, chunk: str, position: int) -> Lexeme | None:
-        match = self.pattern.match(chunk, position)
-        return Lexeme(self.name, match) if match else None
-
-class Lexicon:
-    rules: List[Rule]
-
-    def __init__(self, rules: Sequence[Rule]):
-        self.rules = list(rules)
-        
-
-class Lexer:    
-    def __init__(self, lexicon: Lexicon) -> None:
-        self.lexicon = lexicon
-        self.buffer  = []  
-        self.state   = None
-
-    def flush(self) -> Generator[Lexeme, None, None]:
-        if self.buffer:
-            yield Lexeme(self.state or 'CONTENT', ''.join(self.buffer))
-            self.buffer.clear()
-
-    def analyze(self, chunk: str) -> Generator[Lexeme, None, None]:
-        position = 0
-        while position < len(chunk): 
-            for rule in self.lexicon.rules:
-                lexeme = rule.match(chunk, position)
-                if lexeme:
-                    yield from self.flush()
-                    yield lexeme
-                    position = lexeme.match.end()
-                    break
-                
-            else:
-                self.buffer.append(chunk[position])
-                position+=1
-        yield from self.flush()
-
-from io import StringIO
 from re import compile
+from io import StringIO
 
-if __name__ == '__main__': 
-    lexicon = Lexicon([
-        Rule(compile(r'^#{1,6}'), 'HASHTAG'),
-        Rule(compile(r'\${1,2}'), 'DOLLARS'),
-        Rule(compile(r'\n$')    , 'NEWLINE')
-    ])
+from luthor.lexing import Lexeme, Lexicon
+from luthor.scanning import Scanner
+
+if __name__ == '__main__':
 
     example = StringIO(r"""
 ### Title
+                       
+This is **bold**, *italic* and **bold and *italic***, can 
+display inline equations $E = mc^2$, or blocks like:
+
 $$
-w = x*y + y*z + z*x
+E = \sqrt{(pc)^2 + (mc^2)^2},
 $$
+
+
+where:
+
+- $E$ is energy,
+- $p$ is momentum,
+- and $c$ is speed of light.
+
+It can display inline `code` or code blocks like:
+
+```python 
+
+def energy(p, m):
+    return (p**2 + m**2)**0.5
+```
 """
 )
-    lexer = Lexer(lexicon)
-    for line in example:
-        for lexeme in lexer.analyze(line):
-            print(lexeme.lemma, lexeme.match)
+    lexicon = Lexicon([
+        Lexeme(r'^#{1,6}', 'NUMBER SIGN'),
+        Lexeme(r'\*{1,2}', 'ASTERISK'),
+        Lexeme(r'^_', 'LOW LINE'),
+        Lexeme(r'^-', 'HYPHEN-MINUS'),
+        Lexeme(r'^\+', 'PLUS SIGN'),
+        Lexeme(r'^>', 'GREATER-THAN SIGN'),
+        Lexeme(r'`{1,6}', 'GRAVE ACCENT'),
+        Lexeme(r'^~{2,3}', 'TILDE'),
+        Lexeme(r'\[', 'LEFT SQUARE BRACKET'),
+        Lexeme(r'\]', 'RIGHT SQUARE BRACKET'),
+        Lexeme(r'\(', 'LEFT PARENTHESIS'),
+        Lexeme(r'\)', 'RIGHT PARENTHESIS'),
+        Lexeme(r'^!', 'EXCLAMATION MARK'),
+        Lexeme(r'\|', 'VERTICAL LINE'),
+        Lexeme(r':', 'COLON'),
+        Lexeme(r'\n', 'LINE FEED'),
+        Lexeme(r'\r', 'CARRIAGE RETURN'),
+        Lexeme(r'\t', 'CHARACTER TABULATION'),
+        Lexeme(r'\$', 'DOLLAR SIGN'),
+        Lexeme(r'\.', 'FULL STOP'),
+        Lexeme(r'\\', 'REVERSE SOLIDUS'),
+        Lexeme(r'/', 'SOLIDUS'),
+        Lexeme(r'"', 'QUOTATION MARK'),
+        Lexeme(r"'", 'APOSTROPHE'),
+    ])
+        
+    scanner = Scanner(lexicon)
+
+    for token in scanner.scan(example): 
+        print(token, ',')

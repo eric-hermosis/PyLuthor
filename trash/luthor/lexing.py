@@ -5,15 +5,18 @@ from typing import List, Sequence
 class Lexeme: 
     pattern: Pattern[str] 
     lemma: str
+    state: str | None
 
-    def __init__(self, words: str, lemma: str) -> None: 
-        self.lemma = lemma 
+    def __init__(self, words: str, lemma: str, state: str | None = None) -> None: 
         self.pattern = compile(words)
+        self.lemma = lemma 
+        self.state = state
 
     def match(self, chunk: str, position: int) -> Match[str] | None:
         return self.pattern.match(chunk, position)
 
 class Lexicon:
+
     rules: List[Lexeme]
 
     def __init__(self, rules: Sequence[Lexeme]):

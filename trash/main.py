@@ -1,11 +1,9 @@
-from re import compile
-from io import StringIO
-
 from luthor.lexing import Lexeme, Lexicon
 from luthor.scanning import Scanner
+from io import StringIO
 
 if __name__ == '__main__':
-
+ 
     example = StringIO(r"""
 ### Title
                        
@@ -13,7 +11,7 @@ This is **bold**, *italic* and **bold and *italic***, can
 display inline equations $E = mc^2$, or blocks like:
 
 $$
-E = \sqrt{(pc)^2 + (mc^2)^2},
+E = x*y + y*z + z*x
 $$
 
 
@@ -32,6 +30,7 @@ def energy(p, m):
 ```
 """
 )
+
     lexicon = Lexicon([
         Lexeme(r'^#{1,6}', 'NUMBER SIGN'),
         Lexeme(r'\*{1,2}', 'ASTERISK'),
@@ -62,4 +61,4 @@ def energy(p, m):
     scanner = Scanner(lexicon)
 
     for token in scanner.scan(example): 
-        print(token, ',')
+        print(token)

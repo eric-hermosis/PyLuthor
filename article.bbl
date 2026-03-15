@@ -1,0 +1,116 @@
+\begin{thebibliography}{10}
+
+\bibitem{vaswani2017attention}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~30. Curran Associates, 2017.
+
+\bibitem{dayan2001theoretical}
+Peter Dayan and Laurence~F. Abbott.
+\newblock {\em Theoretical Neuroscience: Computational and Mathematical
+  Modeling of Neural Systems}.
+\newblock MIT Press, Cambridge, MA, 2001.
+
+\bibitem{mcculloch1943logical}
+Warren~S. McCulloch and Walter Pitts.
+\newblock A logical calculus of the ideas immanent in nervous activity.
+\newblock {\em Bulletin of Mathematical Biophysics}, 5(4):115--133, 1943.
+
+\bibitem{rosenblatt1958perceptron}
+Frank Rosenblatt.
+\newblock The perceptron: A probabilistic model for information storage and
+  organization in the brain.
+\newblock {\em Psychological Review}, 65(6):386--408, 1958.
+
+\bibitem{lecun2006energy}
+Yann LeCun, Sumit Chopra, Raia Hadsell, Marc'Aurelio Ranzato, and Fu-Jie Huang.
+\newblock A tutorial on energy-based learning.
+\newblock In G{\"o}khan Bakir, Thomas Hofmann, Bernhard Sch{\"o}lkopf, and
+  Alexander~J. Smola, editors, {\em Predicting Structured Data}, pages
+  191--246. MIT Press, Cambridge, MA, 2006.
+
+\bibitem{callen1985thermodynamics}
+Herbert~B. Callen.
+\newblock {\em Thermodynamics and an Introduction to Thermostatistics}.
+\newblock Wiley, New York, 2 edition, 1985.
+
+\bibitem{gibbs1960statistical}
+Josiah~Willard Gibbs.
+\newblock {\em Elementary Principles in Statistical Mechanics}.
+\newblock Dover, New York, 1960.
+\newblock Originally published 1902.
+
+\bibitem{shannon1948mathematical}
+Claude~E. Shannon.
+\newblock A mathematical theory of communication.
+\newblock {\em Bell System Technical Journal}, 27(3):379--423, 1948.
+
+\bibitem{maxwell1871theory}
+James~Clerk Maxwell.
+\newblock {\em Theory of Heat}.
+\newblock Longmans, Green, and Co., London, 1871.
+
+\bibitem{landauer1961irreversibility}
+Rolf Landauer.
+\newblock Irreversibility and heat generation in the computing process.
+\newblock {\em IBM Journal of Research and Development}, 5(3):183--191, 1961.
+
+\bibitem{elfwing2018sigmoid}
+Stefan Elfwing, Eiji Uchibe, and Kenji Doya.
+\newblock Sigmoid-weighted linear units for neural network function
+  approximation in reinforcement learning.
+\newblock {\em Neural Networks}, 107:3--11, 2018.
+
+\bibitem{ramachandran2017swish}
+Prajit Ramachandran, Barret Zoph, and Quoc~V. Le.
+\newblock Searching for activation functions.
+\newblock {\em arXiv preprint}, 2017.
+
+\bibitem{nair2010relu}
+Vinod Nair and Geoffrey~E. Hinton.
+\newblock Rectified linear units improve restricted boltzmann machines.
+\newblock In {\em Proceedings of the 27th International Conference on Machine
+  Learning}, pages 807--814, Haifa, Israel, 2010.
+
+\bibitem{hendrycks2016gelu}
+Dan Hendrycks and Kevin Gimpel.
+\newblock Gaussian error linear units (gelus).
+\newblock {\em arXiv preprint}, 2016.
+
+\bibitem{dauphin2017glu}
+Yann~N. Dauphin, Angela Fan, Michael Auli, and David Grangier.
+\newblock Language modeling with gated convolutional networks.
+\newblock In {\em Proceedings of the 34th International Conference on Machine
+  Learning}, pages 933--941. PMLR, 2017.
+
+\bibitem{shazeer2020glu}
+Noam Shazeer.
+\newblock Glu variants improve transformer.
+\newblock {\em arXiv preprint}, 2020.
+
+\bibitem{su2021roformer}
+Jianlin Su, Yu~Lu, Shengfeng Pan, Ahmed Murtadha, Bo~Wen, and Yunfeng Liu.
+\newblock Roformer: Enhanced transformer with rotary position embedding.
+\newblock {\em arXiv preprint}, 2021.
+
+\bibitem{huttenlocher1979synaptic}
+Peter~R. Huttenlocher.
+\newblock Synaptic density in human frontal cortex — developmental changes
+  and effects of aging.
+\newblock {\em Brain Research}, 163:195--205, 1979.
+
+\bibitem{lecun1989optimal}
+Yann LeCun, John~S. Denker, and Sara~A. Solla.
+\newblock Optimal brain damage.
+\newblock In {\em Advances in Neural Information Processing Systems}, volume~2,
+  pages 598--605, 1989.
+
+\bibitem{hassibi1993second}
+Babak Hassibi and David~G. Stork.
+\newblock Second order derivatives for network pruning: Optimal brain surgeon.
+\newblock In {\em Advances in Neural Information Processing Systems}, volume~5,
+  pages 164--171, 1993.
+
+\end{thebibliography}

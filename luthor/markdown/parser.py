@@ -1,121 +1,9 @@
-from __future__ import annotations
-from uuid import uuid4
-from typing import Sequence
-
-class Node:
-    def __init__(
-        self,   
-        children: Sequence[Node] | None = None
-    ) -> None:
-        self.id = uuid4()   
-        self.children = list(children) if children else []
-
-    def to_latex(self) -> str:
-        """Recursively renders the node and its children into a LaTeX string."""
-        return "\n".join(child.to_latex() for child in self.children if child is not None)
- 
-class Document:
-    def __init__(
-        self,
-        preamble: Sequence[Node] | None = None,
-        body: Sequence[Node] | None = None
-    ) -> None:
-        self.preamble_root = Node(preamble) if preamble else Node([])
-        self.body_root = Node(body) if body else Node([])
-
-    def to_latex(self) -> str: 
-        preamble_str = self.preamble_root.to_latex() 
-        body_str = self.body_root.to_latex()
-         
-        return f"{preamble_str}\n\\begin{{document}}\n\\maketitle\n{body_str}\n\\end{{document}}"
-
-class Command(Node):
-    def __init__(
-        self,
-        name: str,
-        arguments: Sequence[str] | None = None,
-        options: Sequence[str] | str | None = None, 
-    ) -> None:
-        super().__init__()
-        self.name = name
-        self.arguments = list(arguments) if arguments else []
-         
-        if isinstance(options, str):
-            self.options = [options]
-        else:
-            self.options = list(options) if options else [] 
-
-    def to_latex(self) -> str:
-        cmd = f"\\{self.name}"
-         
-        if self.options:
-            opts = ",".join(self.options)
-            cmd += f"[{opts}]"
-             
-        if self.arguments:
-            for arg in self.arguments:
-                cmd += f"{{{arg}}}"
-                
-        return cmd
-
-class Geometry(Node):
-    def __init__(
-        self,
-        paper: str = "a4paper",
-        top: str | None = None,
-        bottom: str | None = None,
-        left: str | None = None,
-        right: str | None = None,
-    ) -> None:
-        super().__init__()
-        self.paper = paper
-        self.top = top
-        self.bottom = bottom
-        self.left = left
-        self.right = right
-
-    def to_latex(self) -> str: 
-        config = [self.paper]
-        
-        if self.top: config.append(f"top={self.top}")
-        if self.bottom: config.append(f"bottom={self.bottom}")
-        if self.left: config.append(f"left={self.left}")
-        if self.right: config.append(f"right={self.right}")
-            
-        opts = ",".join(config)
-        return f"\\geometry{{{opts}}}"
-
+import unicodedata 
 import re
-import unicodedata
-from pathlib import Path
 
-class Include(Node):
-    def __init__(self, filename: str) -> None:
-        super().__init__()
-        self.filename = filename
-        
-    def to_latex(self) -> str:  
-        file_path = Path(self.filename)
-        if not file_path.suffix:
-            file_path = file_path.with_suffix(".md")
-            
-        if not file_path.exists():
-            return f"% ERROR: File {file_path} not found."
-            
-        text = file_path.read_text(encoding="utf-8")
-        text = self.sanitize_unicode(text)
-        
-        if self.filename == "index":
-            text = self.strip_title(text)
-            text = self.strip_citation_section(text)
-            return self.markdown_to_latex(text)
-        elif self.filename == "appendix":
-            return "\\newpage\n\\appendix\n\n" + self.convert_appendix(text)
-        elif self.filename == "abstract":
-            return "\\begin{abstract}\n" + self.markdown_to_latex(text) + "\n\\end{abstract}\n"
-        else:
-            return self.markdown_to_latex(text)
- 
+class Parser:
+    """Handles parsing and converting Markdown text to LaTeX."""
+    
     def sanitize_unicode(self, text: str) -> str:
         return text.replace("\u200B", "")
 
@@ -301,48 +189,16 @@ class Include(Node):
     def convert_table_refs(self, text: str) -> str:
         return re.sub(r"\[@tab:([^\]]+)\]", r"\\ref{table:\1}", text)
 
-    def markdown_to_latex(self, text: str) -> str:
+    def markdown_to_latex(self, text: str) -> str: 
+        text = self.sanitize_unicode(text)  
         text = self.convert_fig_refs(text)
         text = self.convert_table_refs(text)
-        text = self.convert_citations(text)
-        text = self.convert_inline_formatting(text)
+        text = self.convert_citations(text) 
         text, equations = self.convert_math(text)
+        text = self.convert_inline_formatting(text)
         text = self.convert_sections(text)
         text = self.convert_lists(text)
         text = self.convert_tables(text)
         text = self.convert_images(text)
         text = self.restore_math(text, equations)
         return text
-
-    def convert_appendix(self, text: str) -> str:
-        lines, out = text.splitlines(), []
-        first_section = True
-
-        for line in lines:
-            m_sec = re.match(r"^##\s+(.*)$", line)
-            if m_sec and first_section:
-                out.append(rf"\section*{{Appendix: {self.sanitize_latex(m_sec.group(1))}}}")
-                first_section = False
-                continue
-
-            m_sub = re.match(r"^###\s+(.*)$", line)
-            if m_sub:
-                out.append(rf"\subsection*{{{self.sanitize_latex(m_sub.group(1))}}}")
-                continue
-
-            out.append(line)
-
-        return self.markdown_to_latex("\n".join(out))
-    
-class Bibliography(Node):
-    def __init__(self, file: str, style: str = "unsrt") -> None:
-        super().__init__()
-        self.file = file
-        self.style = style
-
-    def to_latex(self) -> str:  
-        return (
-            "\\newpage\n"
-            f"\\bibliographystyle{{{self.style}}}\n"
-            f"\\bibliography{{{self.file}}}"
-        )

@@ -2,7 +2,7 @@ from __future__ import annotations
 from uuid import uuid4
 from typing import Sequence
 from pathlib import Path
-from luthor.markdown.parser import Parser
+from luthor.markdown.parser import DeprecatedParser
 
 class Node:
     def __init__(
@@ -91,7 +91,7 @@ class Include(Node):
     def __init__(self, filename: str) -> None:
         super().__init__()
         self.filename = filename
-        self.parser = Parser()
+        self.parser = DeprecatedParser()
         
     def dump(self) -> str:  
         file_path = Path(self.filename)

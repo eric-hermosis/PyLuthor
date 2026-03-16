@@ -1,5 +1,6 @@
 from typing import Iterator, Generator  
 from luthor.lexing import Lexicon
+from re import Pattern
 
 class Token:
     name: str
@@ -22,8 +23,7 @@ class Token:
 
     def __ne__(self, other) -> bool:
         return not self == other
-        
-
+         
 class Scanner:    
     def __init__(self, lexicon: Lexicon):
         self.lexicon = lexicon

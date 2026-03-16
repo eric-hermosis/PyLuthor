@@ -1,7 +1,92 @@
+from __future__ import annotations
+from typing import Generator, List 
+from collections import deque
+from luthor.markdown.scanner import Token
+
+class Node:
+    children: List[Node]
+    def __init__(self, name: str, value: str = ""):
+        self.name = name
+        self.value = value
+        self.children = []
+
+    def __repr__(self, level=0) -> str:
+        indent = "  " * level
+        val = f" {repr(self.value.strip())}" if self.value.strip() else ""
+        out = f"{indent}{self.name}{val}\n"
+        for child in self.children:
+            out += child.__repr__(level + 1)
+        return out
+    
+class Parser:
+    def __init__(self): 
+        self.queue = deque()
+        self.rules = {
+            'HEAD':  {'node': 'Header',     'closes_on': ['ENDL']},
+            'ITEM':  {'node': 'ListItem',   'closes_on': ['ENDL']},
+            'QUOTE': {'node': 'BlockQuote', 'closes_on': ['ENDL']},
+            'EMPH':  {'node': 'Emphasis',   'toggle': True},
+            'MATH':  {'node': 'MathBlock',  'toggle': True},
+            'CODE':  {'node': 'CodeBlock',  'toggle': True},
+        }
+        self.stack: List[Node] = [Node("DocumentRoot")]
+
+    def parse(self, token: Token) -> Generator[Node, None, None]: 
+        self.queue.append(token)
+        yield from self._process_queue()
+
+    def flush(self) -> Generator[Node, None, None]: 
+        yield from self._process_queue(force_flush=True)
+
+    def _process_queue(self, force_flush: bool = False) -> Generator[Node, None, None]:
+        while self.queue:
+            token = self.queue.popleft()
+             
+            if token.name == 'TEXT' and not token.value.strip():
+                continue
+
+            current_node = self.stack[-1]
+ 
+            active_rule = next((r for r in self.rules.values() if r.get('node') == current_node.name), None)
+            if active_rule and token.name in active_rule.get('closes_on', []):
+                finished_node = self.stack.pop()
+                if len(self.stack) == 1:
+                    yield finished_node
+                continue
+ 
+            rule = self.rules.get(token.name)
+            
+            if rule and rule.get('toggle'):
+                if current_node.name == rule['node']:
+                    finished_node = self.stack.pop()  
+                    if len(self.stack) == 1:
+                        yield finished_node
+                else:
+                    new_node = Node(rule['node'])  
+                    current_node.children.append(new_node)
+                    self.stack.append(new_node)
+                    
+            elif rule:
+                new_node = Node(rule['node'], token.value)
+                current_node.children.append(new_node)
+                self.stack.append(new_node)
+                
+            else: 
+                if token.name == 'ENDL' and len(self.stack) == 1:
+                    continue  
+                    
+                leaf = Node(token.name, token.value)
+                current_node.children.append(leaf)
+
+        if force_flush:
+            while len(self.stack) > 1:
+                yield self.stack.pop()
+
+
 import unicodedata 
 import re
 
-class Parser:
+class DeprecatedParser:
     """Handles parsing and converting Markdown text to LaTeX."""
     
     def sanitize_unicode(self, text: str) -> str:

@@ -38,7 +38,9 @@ h1.push(pattern=r"^={3,}$", position=Position.POSTFIX)
  
 bold = Morpheme("STRONG_EMPHASIS", 'BOUND') 
 bold.push(pattern=r"\*\*", position=Position.CIRCUMFIX) 
+
 math_block = Morpheme("MATHEMATICAL_EXPRESSION", 'BOUND')
-math_block.push(pattern=r"\$\$", position=Position.CIRCUMFIX) 
+math_block.push(pattern=r"\$\$", position=Position.CIRCUMFIX)
+ 
 hr = Morpheme("HORIZONTAL_RULE", 'FREE')
 hr.push(pattern=r"^-{3,}$", position=Position.STANDALONE)

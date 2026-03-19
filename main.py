@@ -1,39 +1,23 @@
 from typing import Iterator, Generator
-from typing import Sequence
-from typing import List
-from enum import Enum, auto
-from re import Pattern, Match
- 
-class Category(Enum):
-    OPEN   = auto()
-    CLOSED = auto()
+from typing import Sequence  
+from re import Pattern, Match 
+from re import compile
 
 class Rule:
-    word: str
-    patterns : List[Pattern[str]]
-    category: Category
+    name: str
+    pattern : Pattern[str]
+    terminal: str
+    category: str | None
 
-    def __init__(self, word: str, patterns: Sequence[str], category: Category):
-        self.word = word
-        self.patterns   = [compile(pattern) for pattern in patterns]
+    def __init__(self, name: str, pattern: str, terminal: str, category: str | None = None) -> None:
+        self.name = name
+        self.pattern  = compile(pattern)
+        self.terminal = terminal
         self.category = category
 
-    def match(self, chunk: str, position: int = 0) -> Match[str] | None:
-        for pattern in self.patterns:
-            match = pattern.match(chunk, position)
-            if match:
-                return match
-        else:
-            return None
-    
-    def search(self, chunk: str, position: int = 0) -> Match[str] | None:
-        for pattern in self.patterns:
-            match = pattern.search(chunk, position)
-            if match:
-                return match
-        else:
-            return None
-
+    def match(self, chunk: str, position: int = 0) -> Match[str] | None: 
+        return self.pattern.match(chunk, position)  
+ 
 class Token:
     name : str
     value: str | None
@@ -47,34 +31,79 @@ class Token:
 
 class Scanner:
     def __init__(self, rules: Sequence[Rule]):
-        self.rules = rules
+        self.rules  = rules
+        self.state  = None
+        self.buffer = [] 
+
+    def flush(self) -> Generator[Token, None, None]:
+        if self.buffer: 
+            token_name = self.state[0] if self.state else 'TEXT'
+            yield Token(token_name, ''.join(self.buffer))
+            self.buffer.clear()
         
     def analyze(self, chunk: str) -> Generator[Token, None, None]:
-       ... 
+        position = 0
+
+        while position < len(chunk):      
+            for rule in self.rules: 
+                if self.state and self.state != (rule.category, rule.terminal):
+                    continue
+
+                match = rule.match(chunk, position)
+                if match:
+                    yield from self.flush()   
+
+                    for group in match.groups():     
+                        
+                        if group == rule.terminal:
+                            yield Token(rule.name, group)  
+                            if self.state and self.state == (rule.category, rule.terminal):
+                                self.state = None   
+                                
+                            elif not self.state and rule.category:
+                                self.state = (rule.category, rule.terminal)
+ 
+                        elif rule.category: 
+                            self.state = (rule.category, rule.terminal)
+                            yield Token(rule.category, group)  
+
+                        else:
+                            yield from self.analyze(group)
+
+                    position = match.end()
+                    break
+            else: 
+                self.buffer.append(chunk[position])
+                position+=1 
+
+        if not self.state:
+            yield from self.flush()
 
     def scan(self, stream: Iterator[str]) -> Generator[Token, None, None]:
         for line in stream:
+            line = line.rstrip()
             yield from self.analyze(line)
-
-class Parser:
-    ...
+        
 
 
-
-from re import compile
+from io import StringIO
 
 if __name__ == '__main__':
 
-    rule = Rule('STAR', [r'(\*\*)(.*?)(\*\*)(?!\*)'], Category.OPEN) 
-    match = rule.search("**bold and *italic***") 
-    print(match.groups())
-    
-    rule = Rule('STAR', [r'(\$)(.*?)(\$)'], Category.OPEN)
-    pattern = compile(r'(\$)(.*?)(\$)')
-    match = rule.search("$E = mc^2$") 
-    print(match.groups())
+    example = StringIO(r"""
+This is an example with **bold and *italic***, inline math like $f(x) = x**2$ and math blocks:
+                       
+$$
+f(x,y,z) = x*y + y*z + z*x                       
+$$
 
-    """
-    **bold and *italic***  -> Token(STAR, '**'), Token(TEXT, bold and), Token(STAR, '*'), Token(TEXT, 'italic'), Token(STAR, '*'), Token(STAR, '**')
-    **bold and *italic** * -> Token(TEXT, '**bold and * italic), Token(STAR, '**')
-    """
+""") 
+    scanner = Scanner([ 
+        Rule('STAR', r'(\*\*)(.*?)(\*\*)(?!\*)', '**'),
+        Rule('STAR', r'(\*)(.*?)(\*)', '*'),
+        Rule('SIGN', r'(\$\$)', '$$' ,'MATH'),
+        Rule('SIGN', r'(\$)(.*?)(\$)', '$' ,'MATH'), 
+    ])
+
+    for token in scanner.scan(example):
+        print(token) 

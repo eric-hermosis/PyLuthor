@@ -1,109 +1,245 @@
-from typing import Iterator, Generator
-from typing import Sequence  
-from re import Pattern, Match 
-from re import compile
+from __future__ import annotations
+from luthor.scanning import Scanner, Lexicon, Rule
+from luthor.parsing import Parser, Grammar, Production, Node
 
-class Rule:
-    name: str
-    pattern : Pattern[str]
-    terminal: str
-    category: str | None
+class CSTNode:
+    def __init__(self, children: list[CSTNode] | None = None):
+        self.children = children or []
+        self.is_syntax = False  # Flag to mark tokens like '|' or ']'
 
-    def __init__(self, name: str, pattern: str, terminal: str, category: str | None = None) -> None:
-        self.name = name
-        self.pattern  = compile(pattern)
-        self.terminal = terminal
-        self.category = category
+    def dump(self) -> str:
+        # Recursive base: join all children's dumps
+        return ''.join(child.dump() for child in self.children)
 
-    def match(self, chunk: str, position: int = 0) -> Match[str] | None: 
-        return self.pattern.match(chunk, position)  
- 
-class Token:
-    name : str
-    value: str | None
+    def link(self, node: CSTNode):
+        self.children.append(node)
 
-    def __init__(self, name: str, value: str | None = None):
-        self.name  = name
-        self.value = value
+import re
 
-    def __repr__(self):
-        return f"Token({self.name}, {self.value})" if self.value else f"Token({self.name})"
+def sanitize_latex(s: str) -> str: 
+    replacements = {
+        '\\': r'\textbackslash{}',
+        '&': r'\&',
+        '%': r'\%',
+        '$': r'\$',
+        '#': r'\#',
+        '_': r'\_',
+        '{': r'\{',
+        '}': r'\}',
+        '~': r'\textasciitilde{}',
+        '^': r'\textasciicircum{}',
+    }
+    pattern = re.compile('|'.join(re.escape(k) for k in replacements))
+    return pattern.sub(lambda m: replacements[m.group()], s)
 
-class Scanner:
-    def __init__(self, rules: Sequence[Rule]):
-        self.rules  = rules
-        self.state  = None
-        self.buffer = [] 
-
-    def flush(self) -> Generator[Token, None, None]:
-        if self.buffer: 
-            token_name = self.state[0] if self.state else 'TEXT'
-            yield Token(token_name, ''.join(self.buffer))
-            self.buffer.clear()
+class TextNode(CSTNode):
+    def __init__(self, text: str):
+        super().__init__()
+        self.text = text
         
-    def analyze(self, chunk: str) -> Generator[Token, None, None]:
-        position = 0
+    def dump(self) -> str:
+        return sanitize_latex(self.text)
+    
+class Title(CSTNode):
+    def dump(self) -> str:
+        return f"\\section{{{super().dump().strip()}}}\n"
 
-        while position < len(chunk):      
-            for rule in self.rules: 
-                if self.state and self.state != (rule.category, rule.terminal):
-                    continue
+class Section(CSTNode):
+    def dump(self) -> str:
+        return f"\\section{{{super().dump().strip()}}}\n"
 
-                match = rule.match(chunk, position)
-                if match:
-                    yield from self.flush()   
+class Subsection(CSTNode):
+    def dump(self) -> str:
+        return f"\\subsection{{{super().dump().strip()}}}\n"
 
-                    for group in match.groups():     
-                        
-                        if group == rule.terminal:
-                            yield Token(rule.name, group)  
-                            if self.state and self.state == (rule.category, rule.terminal):
-                                self.state = None   
-                                
-                            elif not self.state and rule.category:
-                                self.state = (rule.category, rule.terminal)
- 
-                        elif rule.category: 
-                            self.state = (rule.category, rule.terminal)
-                            yield Token(rule.category, group)  
+class Bold(CSTNode):
+    def dump(self) -> str:
+        return f"\\textbf{{{super().dump()}}}"
 
-                        else:
-                            yield from self.analyze(group)
+class Italic(CSTNode):
+    def dump(self) -> str:
+        return f"\\textit{{{super().dump()}}}"
 
-                    position = match.end()
-                    break
-            else: 
-                self.buffer.append(chunk[position])
-                position+=1 
+class MathBlock(CSTNode):
+    def dump(self) -> str:
+        # Use begin{equation} as requested
+        return f"\\begin{{equation}}\n{super().dump().strip()}\n\\end{{equation}}\n"
 
-        if not self.state:
-            yield from self.flush()
+class MathInline(CSTNode):
+    def dump(self) -> str:
+        return f"${super().dump().strip()}$"
 
-    def scan(self, stream: Iterator[str]) -> Generator[Token, None, None]:
-        for line in stream:
-            line = line.rstrip()
-            yield from self.analyze(line)
-        
+class CodeBlock(CSTNode):
+    def dump(self) -> str:
+        return f"\\begin{{verbatim}}\n{super().dump().strip()}\n\\end{{verbatim}}\n"
 
+class CodeInline(CSTNode):
+    def dump(self) -> str:
+        return f"\\texttt{{{super().dump()}}}"
 
+class Item(CSTNode):
+    def dump(self) -> str:
+        return f"\\item {super().dump().strip()}\n"
+
+class TableRow(CSTNode):
+    def dump(self) -> str: 
+        parts = [c.dump().strip() for c in self.children if not c.is_syntax]
+        if not parts:
+            return ''
+        return ' & '.join(parts) + r' \\'
+
+class Figure(CSTNode):
+    def dump(self) -> str: 
+        elements = [c.dump().strip() for c in self.children if not c.is_syntax and c.dump().strip()]
+        caption = elements[0] if len(elements) > 0 else ""
+        url = elements[-1] if len(elements) > 1 else ""
+        return f"\\begin{{figure}}[h]\n\\centering\n\\includegraphics{{{url}}}\n\\caption{{{caption}}}\n\\end{{figure}}\n"
+
+class Break(CSTNode):
+    def dump(self) -> str:
+        return "\n"
+
+def ast_to_cst(node: Node) -> CSTNode:
+    # Tokens we want to traverse but not print literally in the dump
+    syntax_kinds = {'UrlSeparator', 'ColumnSeparator', 'FIG_MID', 'PIPE'}
+
+    # Map AST node kinds to CST node classes
+    kind_map = {
+        'Document': CSTNode,
+        'Title': Title,
+        'Section': Section,
+        'Subsection': Subsection,
+        'Bold': Bold,
+        'Italic': Italic,
+        'Math[Block]': MathBlock,
+        'Math[Inline]': MathInline,
+        'Math[Content]': TextNode,
+        'Code[Block]': CodeBlock,
+        'Code[Inline]': CodeInline,
+        'Code[Content]': TextNode,
+        'Item': Item,
+        'TableRow': TableRow,
+        'Figure': Figure,
+        'Break': Break,
+        'Text': TextNode,
+    }
+
+    # If this node is a syntax marker, always use plain CSTNode
+    if node.kind in syntax_kinds:
+        cst_node = CSTNode()
+        cst_node.is_syntax = True
+    else:
+        cls = kind_map.get(node.kind, TextNode)
+        if cls is TextNode:
+            return TextNode(node.value or '')
+        cst_node = cls()
+
+    # Recursively link children
+    for child in node.children:
+        cst_node.link(ast_to_cst(child))
+
+    return cst_node
 from io import StringIO
 
 if __name__ == '__main__':
 
     example = StringIO(r"""
-This is an example with **bold and *italic***, inline math like $f(x) = x**2$ and math blocks:
+# Title
+                       
+## Section
+
+Inline math like $f(x) = x**2$ and math blocks:
                        
 $$
-f(x,y,z) = x*y + y*z + z*x                       
+f(x,y,z) = x*y + y*z + z*x,
 $$
+                       
+where:
+- $f$ is a **function**,
+- and $x$, $y$, $z$ are variables.
+                                                
+### Subsection here
 
-""") 
-    scanner = Scanner([ 
-        Rule('STAR', r'(\*\*)(.*?)(\*\*)(?!\*)', '**'),
-        Rule('STAR', r'(\*)(.*?)(\*)', '*'),
-        Rule('SIGN', r'(\$\$)', '$$' ,'MATH'),
-        Rule('SIGN', r'(\$)(.*?)(\$)', '$' ,'MATH'), 
-    ])
+Inline `code` and code blocks:
+                       
+```
+def square(x):
+    return x**2
+```                     
 
-    for token in scanner.scan(example):
-        print(token) 
+This is an example with **bold and *italic*** emphasis. 
+
+| Header 1 | Header 2   |
+| -------- | ---------- |
+| Cell $1$ | Cell **2** |
+
+Here is an image for the document:
+![A cool landscape](https://example.com/image.png)
+                       
+""")
+
+lexicon = Lexicon([
+
+    Rule('ENDL', r'(\n)', '\n'),
+ 
+    Rule('H3', r'(^###)(?:\s*)(.*?)(\n|$)', '###'),
+    Rule('H2', r'(^##)(?:\s)(.*?)(\n|$)', '##'), 
+    Rule('H1', r'(^#)(?:\s)(.*?)(\n|$)', '#'),
+
+    Rule('ITEM', r'(^[-\*])(?:\s+)(.*?)(\n|$)', '-'),
+
+    Rule('ROW_START', r'(^\|)', '|'),
+    Rule('ROW_END', r'(\|)(?=\s*\n|$)', '|'),
+    Rule('PIPE', r'(\|)', '|'),
+ 
+    Rule('FIG_OPEN', r'(\!\[)', '!['),
+    Rule('FIG_MID', r'(\]\()', ']('),
+    Rule('CLOSE_PAREN', r'(\))', ')'),
+    
+    Rule('STAR', r'(\*\*)(.*?)(\*\*)(?!\*)', '**'),
+    Rule('STAR', r'(\*)(.*?)(\*)', '*'),
+    Rule('SIGN', r'(\$\$)', '$$' ,'MATH'),
+    Rule('SIGN', r'(\$)(.*?)(\$)', '$' ,'MATH'), 
+    Rule('TICK', r'(\```)', '```' ,'CODE'),
+    Rule('TICK', r'(\`)', '`' ,'CODE'),  
+])
+
+scanner = Scanner(lexicon)
+grammar = Grammar( 
+    productions=[   
+        Production('Title',        ['H1', '#',   'ENDL', '\n']),
+        Production('Section',      ['H2', '##',  'ENDL', '\n']),
+        Production('Subsection',   ['H3', '###', 'ENDL', '\n']), 
+        Production('Item',         ['ITEM', '-', 'ENDL', '\n']),
+        Production('TableRow',     ['ROW_START', '|', 'ROW_END', '|']),
+        Production('Figure',       ['FIG_OPEN', '![', 'CLOSE_PAREN', ')']),
+                    
+        Production('Bold',         ['STAR', '**']),
+        Production('Italic',       ['STAR', '*']),
+        Production('Math[Block]',  ['SIGN', '$$']), 
+        Production('Math[Inline]', ['SIGN', '$']), 
+        Production('Code[Block]',  ['TICK', '```']),
+        Production('Code[Inline]', ['TICK', '`']),
+    ],
+    content={ 
+        'TEXT': 'Text',
+        'ITEM': 'Item',
+        'MATH': 'Math[Content]',
+        'CODE': 'Code[Content]',
+        'ENDL': 'Break', 
+        'FIG_MID': 'UrlSeparator',
+        'CLOSE_PAREN': 'Text',
+        'PIPE': 'ColumnSeparator',
+    }
+)
+ 
+parser = Parser(grammar)
+tokens = scanner.scan(example)   
+
+ast = parser.parse(tokens) 
+print(ast)
+
+cst_root = ast_to_cst(ast)   
+latex_cst = cst_root.dump() 
+
+print(latex_cst)

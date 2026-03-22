@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from typing import Iterator, Generator
-from typing import Sequence 
-from typing import List
+from typing import Sequence  
 from re import Pattern, Match 
 from re import compile
 
@@ -212,69 +211,61 @@ class Analyzer:
 
         flush_buffer()
         parent.children = new_children
-
-    # -------------------------
-    # METADATA ATTACHMENT
-    # -------------------------
+        
     def _attach_metadata(self, parent: Node) -> None:
         import re
+
+        meta_re = re.compile(
+            r'(?s)^(?P<prefix>.*?)<!--(?P<kind>table|figure):(?P<label>.+?)-->(?P<suffix>.*)$'
+        )
 
         new_children: list[Node] = []
         i = 0
 
         while i < len(parent.children):
             node = parent.children[i]
-
             self._attach_metadata(node)
 
-            # -------------------------
-            # METADATA (table/figure labels)
-            # -------------------------
-            if (
-                node.kind == 'Text'
-                and node.value
-                and (m := re.match(r'<!--(table|figure):(.+?)-->', node.value.strip()))
-            ):
-                kind, label = m.groups()
+            if node.kind == 'Text' and node.value:
+                m = meta_re.match(node.value)
+                if m:
+                    prefix = m.group('prefix')
+                    kind = m.group('kind')
+                    label = m.group('label').strip()
+                    suffix = m.group('suffix').strip()
 
-                j = len(new_children) - 1
-                while j >= 0 and new_children[j].kind == 'Break':
-                    j -= 1
+                    # keep any text before the comment
+                    if prefix.strip():
+                        new_children.append(Node('Text', prefix))
 
-                if j >= 0:
-                    prev = new_children[j]
+                    # find previous target node
+                    j = len(new_children) - 1
+                    while j >= 0 and new_children[j].kind == 'Break':
+                        j -= 1
+                    target = new_children[j] if j >= 0 else None
 
-                    if kind == 'table' and prev.kind == 'Table':
-                        prev.value = label
+                    if target and (
+                        (kind == 'table' and target.kind == 'Table') or
+                        (kind == 'figure' and target.kind == 'Figure')
+                    ):
+                        target.value = label
+
+                        # caption comes from the same node, right after the comment
+                        if suffix:
+                            target.caption = suffix
+                        else:
+                            # fallback: immediate next text node after breaks only
+                            k = i + 1
+                            while k < len(parent.children) and parent.children[k].kind == 'Break':
+                                k += 1
+                            if k < len(parent.children):
+                                candidate = parent.children[k]
+                                if candidate.kind == 'Text' and candidate.value and candidate.value.strip():
+                                    target.caption = candidate.value.strip()
+                                    i = k  # consume caption node
+
                         i += 1
                         continue
-
-                    if kind == 'figure' and prev.kind == 'Figure':
-                        prev.value = label
-                        i += 1
-                        continue
-
-            # -------------------------
-            # REFERENCES: [text](label)
-            # -------------------------
-            if (
-                node.kind == 'Text'
-                and node.value
-                and i + 3 < len(parent.children)
-                and parent.children[i + 1].kind == 'UrlSeparator'
-                and parent.children[i + 2].kind == 'Text'
-                and parent.children[i + 3].kind == 'Text'
-                and parent.children[i + 3].value == ')'
-            ):
-                label = parent.children[i + 2].value.strip()
-
-                # Only convert known refs
-                if label.startswith('table:') or label.startswith('figure:'):
-                    ref_node = Node('Reference', label)
-
-                    new_children.append(ref_node)
-                    i += 4
-                    continue
 
             new_children.append(node)
             i += 1
@@ -295,17 +286,8 @@ class CSTNode:
         self.children.append(node)
 
 def sanitize_latex(s: str) -> str: 
-    replacements = {
-        '\\': r'\textbackslash{}',
-        '&': r'\&',
-        '%': r'\%',
-        '$': r'\$',
-        '#': r'\#',
-        '_': r'\_',
-        '{': r'\{',
-        '}': r'\}',
-        '~': r'\textasciitilde{}',
-        '^': r'\textasciicircum{}',
+    replacements = { 
+        '~': r'\textasciitilde{}', 
     }
     pattern = re.compile('|'.join(re.escape(k) for k in replacements))
     return pattern.sub(lambda m: replacements[m.group()], s)
@@ -322,21 +304,23 @@ class DocumentNode(CSTNode):
                  
         return "".join(parts).strip() + '\n'
 
-class Reference(CSTNode):
-    def __init__(self, label: str):
-        super().__init__()
-        self.label = label
-
-    def dump(self) -> str:
-        return f"\\ref{{{self.label}}}"
-
 class TextNode(CSTNode):
     def __init__(self, text: str):
         super().__init__()
         self.text = text
-        
+ 
     def dump(self) -> str:
-        return sanitize_latex(self.text)
+        text = sanitize_latex(self.text)
+
+        def repl(match):
+            text_part = match.group(1)
+            target = match.group(2)
+ 
+            if re.match(r'(table|figure):', target):
+                return f"\\ref{{{target}}}"
+ 
+            return f"\\href{{{target}}}{{{text_part}}}" 
+        return re.sub(r'\[(.*?)\]\((.*?)\)', repl, text)
     
 class Title(CSTNode):
     def dump(self) -> str:
@@ -373,20 +357,20 @@ class CodeBlock(CSTNode):
 class CodeInline(CSTNode):
     def dump(self) -> str:
         return f"\\texttt{{{super().dump()}}}"
-   
 class Figure(CSTNode):
     def __init__(self):
         super().__init__()
-        self.caption: str | None = None
-        self.label: str | None = None
-        self.url: str = ""
+        self.caption = None
+        self.label = None
+        self.url = None
 
     def dump(self) -> str:
-        res = (
-            "\\begin{figure}[h]\n"
-            "\\centering\n"
-            f"\\includegraphics{{{self.url}}}\n"
-        )
+        res = "\\begin{figure}[h]\n\\centering\n"
+
+        if self.url:
+            res += f"\\includegraphics{{{self.url}}}\n"
+        else:
+            res += "\\includegraphics{}\n"
 
         if self.caption:
             res += f"\\caption{{{self.caption}}}\n"
@@ -460,6 +444,14 @@ class TableRow(CSTNode):
 
         return ' & '.join(parts) + r' \\' 
  
+class Reference(CSTNode):
+    def __init__(self, label: str, text: str | None = None):
+        super().__init__()
+        self.label = label
+        self.text = text   
+
+    def dump(self) -> str: 
+        return f"\\ref{{{self.label}}}"
     
 class List(CSTNode):
     def dump(self) -> str:
@@ -473,11 +465,10 @@ class Item(CSTNode):
         return f"\\item {super().dump().strip()}\n" 
  
 def ast_to_cst(node: Node) -> CSTNode:
-    syntax_kinds = {'UrlSeparator', 'FIG_MID', 'PIPE'}
+    syntax_kinds = {'UrlSeparator', 'PIPE'}
 
     kind_map = {
         'Document': DocumentNode,
-        'Reference': Reference,
         'Title': Title,
         'Section': Section,
         'Subsection': Subsection,
@@ -499,66 +490,91 @@ def ast_to_cst(node: Node) -> CSTNode:
         'List': List,
     }
 
-    # --- SYNTAX NODES (ignored in output) ---
+    # -------------------------
+    # FACTORY (THIS FIXES EVERYTHING)
+    # -------------------------
+    def make_node(kind: str, value: str | None) -> CSTNode:
+        cls = kind_map.get(kind)
+
+        if cls is None:
+            return TextNode(value or '')
+
+        # value-carrying nodes
+        if cls is TextNode:
+            return TextNode(value or '')
+
+        # all others: no-arg ctor
+        return cls()
+
+    # -------------------------
+    # IGNORE SYNTAX
+    # -------------------------
     if node.kind in syntax_kinds:
-        cst_node = CSTNode()
-        cst_node.is_syntax = True
-        return cst_node
+        n = CSTNode()
+        n.is_syntax = True
+        return n
 
-    # --- HARD FALLBACK ---
-    cls = kind_map.get(node.kind)
-    if cls is None:
-        return TextNode(node.value or '')
+    # -------------------------
+    # LINK
+    # -------------------------
+    if node.kind == 'Link':
+        if len(node.children) >= 3:
+            a, b, c = node.children[:3]
+            if a.kind == 'Text' and b.kind == 'UrlSeparator' and c.kind == 'Text':
+                target = c.value
+                if target and target.startswith(('table:', 'figure:')):
+                    return Reference(label=target)
+                else:
+                    n = CSTNode()
+                    n.link(TextNode(a.value or ''))
+                    return n
+        return TextNode('')
 
-    if cls is TextNode:
-        return TextNode(node.value or '')
-
-    if node.kind == 'Reference':
-        return Reference(node.value or '')
 
     if node.kind == 'Figure':
         fig = Figure()
 
         if node.value:
             fig.label = f"figure:{node.value}"
+ 
+        fig.caption = getattr(node, "caption", None)
 
-        i = 0
-        while i < len(node.children):
-            c = node.children[i]
-
-            if (
-                c.kind == 'Text'
-                and i + 2 < len(node.children)
-                and node.children[i + 1].kind == 'UrlSeparator'
-                and node.children[i + 2].kind == 'Text'
-            ):
-                fig.caption = (c.value or '').strip()
-                fig.url = (node.children[i + 2].value or '').strip()
-                i += 3
-                continue
-
-            i += 1
+        # only extract the image URL from the figure syntax
+        for i in range(len(node.children) - 2):
+            a, b, c = node.children[i:i+3]
+            if a.kind == 'Text' and b.kind == 'UrlSeparator' and c.kind == 'Text':
+                fig.url = (c.value or '').strip()
+                break
 
         return fig
 
-    # --- TABLE ROW ---
+    # -------------------------
+    # TABLE ROW
+    # -------------------------
     if node.kind == 'TableRow':
         row = TableRow()
-        for child in node.children:
-            child_cst = ast_to_cst(child)
 
-            if getattr(child_cst, 'is_syntax', False) and not isinstance(child_cst, ColumnSeparator):
+        for child in node.children:
+            c = ast_to_cst(child)
+
+            if getattr(c, 'is_syntax', False) and not isinstance(c, ColumnSeparator):
                 continue
 
-            row.link(child_cst)
+            row.link(c)
+
         return row
 
-    # --- TABLE ---
+    # -------------------------
+    # TABLE
+    # -------------------------
     if node.kind == 'Table':
         table = Table()
 
         if node.value:
             table.label = f"table:{node.value}"
+
+        # carry metadata attached by Analyzer
+        table.caption = getattr(node, "caption", None)
 
         for child in node.children:
             if child.kind == 'TableRow':
@@ -566,80 +582,87 @@ def ast_to_cst(node: Node) -> CSTNode:
 
         return table
 
-    # --- GENERAL CASE ---
-    cst_node = cls()
+    # -------------------------
+    # DEFAULT NODE CREATION
+    # -------------------------
+    cst_node = make_node(node.kind, node.value)
 
+    # -------------------------
+    # CHILDREN
+    # -------------------------
     i = 0
     while i < len(node.children):
         child = node.children[i]
 
         # GROUP LIST ITEMS
         if child.kind == 'Item':
-            list_node = List()
+            lst = List()
+
             while i < len(node.children) and node.children[i].kind == 'Item':
-                list_node.link(ast_to_cst(node.children[i]))
+                lst.link(ast_to_cst(node.children[i]))
                 i += 1
-            cst_node.link(list_node)
+
+            cst_node.link(lst)
             continue
 
         cst_node.link(ast_to_cst(child))
         i += 1
 
-    return cst_node
-
+    return cst_node 
+ 
 from io import StringIO
 
 if __name__ == '__main__':
 
     example = StringIO(r"""
-# Title
-                       
-This is an example with **bold and *italic*** emphasis. 
-                       
-## Section
+# Section
 
-Inline math like $f(x) = x**2$ and math blocks:
-                       
+This is an example with **bold and *italic* emphasis** and *italic and **bold** emphasis*.
+
+## Subsection
+
+Inline math like $f(x) = x^2$ and math blocks:
+
 $$
-f(x,y,z) = x*y + y*z + z*x,
+f(x,y,z) = xy + yz + zx,
 $$
-                       
+
 where:
 - $f$ is a **function**,
 - and $x$, $y$, $z$ are variables.
-                                                
-### Subsection here
 
+### Subsubsection
+ 
 Inline `code` and code blocks:
-                       
+
 ```
 def square(x):
-    return x**2
+	return x**2
 ```
 
-| Header 1 | Header 2   |
-| -------- | ---------- |
-| Cell $1$ | Cell **2** | 
-<!--table:example-->
-                       
-Here table [1](table:example) is a table and an image for the document:
-                       
-![A cool landscape](https://example.com/image.png) 
-<!--figure:landscape-->
+| Header 1   | Header 2   |
+| --------   | ---------- |
+| Cell $x=1$ | Cell **b** |
+[Table 1:](table:example) This is the *caption* of the table where $x=1$ is math and **b** have emphasis.
 
-Can be reference as figure [5](figure:landscape) the same way. 
-                       
+Here table [1](table:example) is a table. An example of an image:
+
+![PyLuthor logo](logo.png)
+[Figure 1:](figure:logo) This is the *caption* of the image.
+
+Can be referenced as figure [1](figure:logo) just like with tables.
 """)
+  
 
-lexicon = Lexicon([
 
-    Rule('ENDL', r'(\n)', '\n'),
- 
+
+lexicon = Lexicon([ 
+    Rule('ENDL', r'(\n)', '\n'), 
     Rule('H4', r'(^####)(?:\s*)(.*?)(\n|$)', '####'),
     Rule('H3', r'(^###)(?:\s*)(.*?)(\n|$)', '###'),
-    Rule('H2', r'(^##)(?:\s)(.*?)(\n|$)', '##'), 
+    Rule('H2', r'(^##)(?:\s)(.*?)(\n|$)', '##'),
     Rule('H1', r'(^#)(?:\s)(.*?)(\n|$)', '#'),
-
+    Rule('LINK', r'(\[)(.*?)(\]\()(.*?)(\))', '['),
     Rule('ITEM', r'(^[-\*])(?:\s+)(.*?)(\n|$)', '-'),
 
     Rule('ROW_START', r'(^\|)', '|'),
@@ -647,41 +670,42 @@ lexicon = Lexicon([
     Rule('PIPE', r'(\|)', '|'),
  
     Rule('FIG_OPEN', r'(\!\[)', '!['),
-    Rule('FIG_MID', r'(\]\()', ']('),
+    Rule('FIG_SEP', r'(\]\()', ']('),
     Rule('CLOSE_PAREN', r'(\))', ')'),
-    
+
     Rule('STAR', r'(\*\*)(.*?)(\*\*)(?!\*)', '**'),
     Rule('STAR', r'(\*)(.*?)(\*)', '*'),
-    Rule('SIGN', r'(\$\$)', '$$' ,'MATH'),
-    Rule('SIGN', r'(\$)(.*?)(\$)', '$' ,'MATH'), 
-    Rule('TICK', r'(\```)', '```' ,'CODE'),
-    Rule('TICK', r'(\`)', '`' ,'CODE')
-])
+    Rule('SIGN', r'(\$\$)', '$$', 'MATH'),
+    Rule('SIGN', r'(\$)(.*?)(\$)', '$', 'MATH'),
+    Rule('TICK', r'(\```)', '```', 'CODE'),
+    Rule('TICK', r'(\`)', '`', 'CODE'),
+]) 
 
 scanner = Scanner(lexicon)
 grammar = Grammar( 
     productions=[   
         Production('Title',        ['H1', '#',   'ENDL', '\n']),
+        Production('Link', ['LINK', '[', 'CLOSE_PAREN', ')']),
         Production('Section',      ['H2', '##',  'ENDL', '\n']),
         Production('Subsection',   ['H3', '###', 'ENDL', '\n']), 
         Production('Item',         ['ITEM', '-', 'ENDL', '\n']),
         Production('TableRow',     ['ROW_START', '|', 'ROW_END', '|']),
         Production('Figure',       ['FIG_OPEN', '![', 'CLOSE_PAREN', ')']),
                     
-        Production('Bold',         ['STAR', '**']),
-        Production('Italic',       ['STAR', '*']),
+        Production('Bold',         ['STAR', '**']), 
+        Production('Italic',       ['STAR', '*']),  
         Production('Math[Block]',  ['SIGN', '$$']), 
-        Production('Math[Inline]', ['SIGN', '$']), 
+        Production('Math[Inline]', ['SIGN', '$']),  
         Production('Code[Block]',  ['TICK', '```']),
-        Production('Code[Inline]', ['TICK', '`']),
+        Production('Code[Inline]', ['TICK', '`']),  
     ],
-    content={ 
+    content={
         'TEXT': 'Text',
         'ITEM': 'Item',
         'MATH': 'Math[Content]',
         'CODE': 'Code[Content]',
-        'ENDL': 'Break', 
-        'FIG_MID': 'UrlSeparator',
+        'ENDL': 'Break',
+        'FIG_SEP': 'UrlSeparator',   
         'CLOSE_PAREN': 'Text',
         'PIPE': 'ColumnSeparator',
     }

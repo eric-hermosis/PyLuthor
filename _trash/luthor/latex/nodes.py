@@ -2,7 +2,13 @@ from __future__ import annotations
 from uuid import uuid4
 from typing import Sequence
 from pathlib import Path
-from luthor.markdown.parser import DeprecatedParser
+
+from io import StringIO
+from luthor.latex.cst import ast_to_cst
+from luthor.markdown.definition import Markdown
+from luthor.scanner import Scanner
+from luthor.parser import Parser
+from luthor.analyzer import Analyzer
 
 class Node:
     def __init__(
@@ -86,23 +92,7 @@ class Geometry(Node):
             
         opts = ",".join(config)
         return f"\\geometry{{{opts}}}" 
-        
-class Include(Node):
-    def __init__(self, filename: str) -> None:
-        super().__init__()
-        self.filename = filename
-        self.parser = DeprecatedParser()
-        
-    def dump(self) -> str:  
-        file_path = Path(self.filename)
-        if not file_path.suffix:
-            file_path = file_path.with_suffix(".md")
-            
-        if not file_path.exists():
-            return f"% ERROR: File {file_path} not found."
-             
-        text = file_path.read_text(encoding="utf-8") 
-        return self.parser.markdown_to_latex(text)
+         
     
 class Bibliography(Node):
     def __init__(self, file: str, style: str = "unsrt") -> None:
@@ -115,4 +105,28 @@ class Bibliography(Node):
             "\\newpage\n"
             f"\\bibliographystyle{{{self.style}}}\n"
             f"\\bibliography{{{self.file}}}"
-        )
+        ) 
+    
+class Include(Node):
+    def __init__(self, filename: str) -> None:
+        super().__init__()
+        self.filename = filename
+
+    def dump(self) -> str:
+        file_path = Path(self.filename)
+        if not file_path.suffix:
+            file_path = file_path.with_suffix(".md")
+        if not file_path.exists():
+            return f"% ERROR: File {file_path} not found."
+
+        text = file_path.read_text(encoding="utf-8")
+        stream = StringIO(text)
+ 
+        scanner = Scanner(Markdown.lexicon)
+        parser =  Parser(Markdown.grammar)
+        tokens = scanner.scan(stream)
+        ast = parser.parse(tokens)
+        analyzer = Analyzer(ast)
+        analyzed_ast = analyzer.analyze() 
+        cst_root = ast_to_cst(analyzed_ast)
+        return cst_root.dump()

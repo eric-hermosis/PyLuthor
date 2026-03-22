@@ -1,6 +1,6 @@
 from pytest import fixture
 from luthor.lexing import Lexeme, Lexicon
-from luthor.scanning import Scanner, Token
+from luthor.scanner import Scanner, Token
  
 from io import StringIO
 

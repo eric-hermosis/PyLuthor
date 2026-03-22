@@ -1,5 +1,5 @@
 from luthor.lexing import Lexeme, Lexicon
-from luthor.scanning import Scanner
+from luthor.scanner import Scanner
 from io import StringIO
 
 if __name__ == '__main__':

@@ -1,8 +1,8 @@
 from __future__ import annotations
+from typing import List
+from typing import Sequence
 from typing import Iterator
-from typing import Sequence 
-from typing import List 
-from luthor.scanning import Token
+from luthor.scanner import Token
 
 class Node:
     kind:  str
@@ -75,4 +75,4 @@ class Parser:
             _, node = stack.pop()
             stack[-1][1].link(node)
  
-        return root
+        return root   

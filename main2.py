@@ -1,25 +1,40 @@
 from __future__ import annotations
-
 from typing import Iterator, Generator
-from typing import Sequence 
+from typing import Sequence  
 from typing import List
 from re import Pattern, Match 
 from re import compile
 
-class Rule:
+class Symbol:
     name: str
-    pattern : Pattern[str]
-    terminal: str
+    form: str
+
+    def __init__(self, name: str, form: str) -> None:
+        self.name = name
+        self.form = form
+
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, Symbol):
+            return self.name == value.name and self.form == value.form
+        else:
+            return False
+
+class Rule:
+    symbol  : Symbol
+    pattern : Pattern[str] 
     category: str | None
 
-    def __init__(self, name: str, pattern: str, terminal: str, category: str | None = None) -> None:
-        self.name = name
-        self.pattern  = compile(pattern)
-        self.terminal = terminal
+    def __init__(self, symbol: Symbol, pattern: str, category: str | None = None) -> None:
+        self.symbol   = symbol
+        self.pattern  = compile(pattern) 
         self.category = category
 
     def match(self, chunk: str, position: int = 0) -> Match[str] | None: 
         return self.pattern.match(chunk, position)  
+    
+    @property
+    def terminal(self) -> str:
+        return self.symbol.form
  
 class Token:
     name : str
@@ -30,25 +45,34 @@ class Token:
         self.value = value
 
     def __repr__(self):
-        return f"Token({self.name}, {self.value})" if self.value else f"Token({self.name})"
+        return f"Token({self.name}, {self.value!r})" if self.value else f"Token({self.name})"
+    
+class Lexicon:
+    rules: List[Rule]
+
+    def __init__(self, rules: Sequence[Rule]) -> None:
+        self.rules = list(rules)
 
 class Scanner:
-    def __init__(self, rules: Sequence[Rule]):
-        self.rules  = rules
-        self.state  = None
-        self.buffer = [] 
+    def __init__(self, lexicon: Lexicon):
+        self.lexicon = lexicon 
+        self.state   = None
+        self.buffer  = [] 
 
     def flush(self) -> Generator[Token, None, None]:
         if self.buffer: 
-            token_name = self.state[0] if self.state else 'TEXT'
-            yield Token(token_name, ''.join(self.buffer))
-            self.buffer.clear()
-        
+            lemma = self.state[0] if self.state else 'TEXT'
+            value = ''.join(self.buffer)
+            self.buffer.clear()  
+            if lemma == 'TEXT' and value.strip() == '':
+                return  
+            yield Token(lemma, value)
+
     def analyze(self, chunk: str) -> Generator[Token, None, None]:
         position = 0
 
         while position < len(chunk):      
-            for rule in self.rules: 
+            for rule in self.lexicon.rules: 
                 if self.state and self.state != (rule.category, rule.terminal):
                     continue
 
@@ -59,7 +83,7 @@ class Scanner:
                     for group in match.groups():     
                         
                         if group == rule.terminal:
-                            yield Token(rule.name, group)  
+                            yield Token(rule.symbol.name, group)  
                             if self.state and self.state == (rule.category, rule.terminal):
                                 self.state = None   
                                 
@@ -83,11 +107,9 @@ class Scanner:
             yield from self.flush()
 
     def scan(self, stream: Iterator[str]) -> Generator[Token, None, None]:
-        for line in stream:
-            line = line.rstrip()
+        for line in stream: 
             yield from self.analyze(line) 
  
-
 class Node:
     kind:  str
     value: str | None
@@ -110,77 +132,146 @@ class Node:
 
     def link(self, node: Node):
         self.children.append(node) 
-        
-class Parser:
-    def __init__(self, delimiters: dict[tuple[str, str], str], content: dict[str, str]): 
-        self.delimiters = delimiters 
+  
+class Production:
+    def __init__(self, head: str, body: Sequence[str]) -> None:
+        self.head = head
+        self.body = list(body)  
+        self.opener = (self.body[0], self.body[1]) 
+        self.closer = (self.body[2], self.body[3]) if len(self.body) >= 4 else self.opener
+
+class Grammar:
+    def __init__(self, productions: List[Production], content: dict[str, str]): 
+        self.productions = productions 
         self.content = content
 
-    def parse(self, tokens: Iterator[Token]) -> Node:
+class Parser:
+    def __init__(self, grammar: Grammar) -> None:
+        self.grammar = grammar 
+        self.openers = {prod.opener: prod for prod in grammar.productions}
+        self.tokens  = []
+
+    def push(self, token: Token):
+        self.tokens.append(token)
+
+    def flush(self) -> Generator[Node, None, None]:
+        root = self.parse(self.tokens)
+        yield from root.children          
+
+    def parse(self, tokens: Sequence[Token]) -> Node:
         root = Node('Document') 
-        stack: list[tuple[tuple[str, str | None] | None, Node]] = [(None, root)]
+        stack: list[tuple[Production | None, Node]] = [(None, root)]
 
         for token in tokens:
             sig = (token.name, token.value) 
-            if sig in self.delimiters:
-                active_sigs = [s for s, _ in stack]
-                
-                if sig in active_sigs: 
-                    while stack:
-                        popped_sig, node = stack.pop()
-                        if popped_sig == sig: 
-                            stack[-1][1].link(node)
-                            break
-                        else: 
-                            stack[-1][1].link(node)
-                else: 
-                    node_type = self.delimiters[sig]
-                    stack.append((sig, Node(node_type)))
              
+            active_prods = [p for p, _ in stack if p is not None]
+            active_closers = [p.closer for p in active_prods]
+             
+            if sig in active_closers: 
+                while stack:
+                    popped_prod, node = stack.pop()
+                    if popped_prod and popped_prod.closer == sig: 
+                        stack[-1][1].link(node)
+                        break  
+                    else: 
+                        stack[-1][1].link(node) 
+             
+            elif sig in self.openers: 
+                prod = self.openers[sig]
+                stack.append((prod, Node(prod.head)))
+              
             else:
-                node_type = self.content.get(token.name, 'Text') 
+                node_type = self.grammar.content.get(token.name, 'Text') 
                 stack[-1][1].link(Node(node_type, token.value))
  
         while len(stack) > 1:
             _, node = stack.pop()
             stack[-1][1].link(node)
  
-        return root
-
-
-from io import StringIO
-
-if __name__ == '__main__':
-
-    example = StringIO(r"""
-This is an example with **bold and *italic***, inline math like $f(x) = x**2$ and math blocks:
-                       
-$$
-f(x,y,z) = x*y + y*z + z*x                       
-$$
-
-""") 
-    scanner = Scanner([ 
-        Rule('STAR', r'(\*\*)(.*?)(\*\*)(?!\*)', '**'),
-        Rule('STAR', r'(\*)(.*?)(\*)', '*'),
-        Rule('SIGN', r'(\$\$)', '$$' ,'MATH'),
-        Rule('SIGN', r'(\$)(.*?)(\$)', '$' ,'MATH'), 
-    ])
+        return root   
     
-    parser = Parser(
-        delimiters={
-            ('STAR', '**'): 'Bold',
-            ('STAR', '*'):  'Italic',
-            ('SIGN', '$$'): 'Math[Block]',
-            ('SIGN', '$'):  'Math[Inline]'
-        },
+
+class Markdown:
+
+    lexicon = Lexicon([
+        Rule(Symbol('ENDL', '\n'), r'(\n)'), 
+        Rule(Symbol('H4', '####'), r'(^####)(?:\s*)(.*?)(\n|$)'),
+        Rule(Symbol('H3', '###'), r'(^###)(?:\s*)(.*?)(\n|$)'),
+        Rule(Symbol('H2', '##'), r'(^##)(?:\s)(.*?)(\n|$)'),
+        Rule(Symbol('H1', '#'), r'(^#)(?:\s)(.*?)(\n|$)'), 
+        Rule(Symbol('LINK', '['), r'(\[)(.*?)(\]\()(.*?)(\))'), 
+        Rule(Symbol('ITEM', '-'), r'(^[-\*])(?:\s+)(.*?)(\n|$)'), 
+        Rule(Symbol('ROW_START', '|'), r'(^\|)'),
+        Rule(Symbol('ROW_END', '|'), r'(\|)(?=\s*\n|$)'),
+        Rule(Symbol('PIPE', '|'), r'(\|)'), 
+        Rule(Symbol('FIG_OPEN', '!['), r'(\!\[)'),
+        Rule(Symbol('FIG_SEP', ']('), r'(\]\()'),
+        Rule(Symbol('CLOSE_PAREN', ')'), r'(\))'), 
+        Rule(Symbol('STAR', '**'), r'(\*\*)(.*?)(\*\*)(?!\*)'),
+        Rule(Symbol('STAR', '*'), r'(\*)(.*?)(\*)'), 
+        Rule(Symbol('SIGN', '$$'), r'(\$\$)', 'MATH'),
+        Rule(Symbol('SIGN', '$'), r'(\$)(.*?)(\$)', 'MATH'), 
+        Rule(Symbol('TICK', '```'), r'(\```)', 'CODE'),
+        Rule(Symbol('TICK', '`'), r'(\`)', 'CODE'),
+    ])
+
+    grammar = Grammar( 
+        productions=[   
+            Production('Title',        ['H1', '#',   'ENDL', '\n']),
+            Production('Link',         ['LINK', '[', 'CLOSE_PAREN', ')']),
+            Production('Section',      ['H2', '##',  'ENDL', '\n']),
+            Production('Subsection',   ['H3', '###', 'ENDL', '\n']), 
+            Production('Item',         ['ITEM', '-', 'ENDL', '\n']),
+            Production('TableRow',     ['ROW_START', '|', 'ROW_END', '|']),
+            Production('Figure',       ['FIG_OPEN', '![', 'CLOSE_PAREN', ')']),
+                        
+            Production('Bold',         ['STAR', '**']), 
+            Production('Italic',       ['STAR', '*']),  
+            Production('Math[Block]',  ['SIGN', '$$']), 
+            Production('Math[Inline]', ['SIGN', '$']),  
+            Production('Code[Block]',  ['TICK', '```']),
+            Production('Code[Inline]', ['TICK', '`']),  
+        ],
 
         content={
             'TEXT': 'Text',
-            'MATH': 'Math[Content]'
+            'ITEM': 'Item',
+            'MATH': 'Math[Content]',
+            'CODE': 'Code[Content]',
+            'ENDL': 'Break',
+            'FIG_SEP': 'UrlSeparator',   
+            'CLOSE_PAREN': 'Text',
+            'PIPE': 'ColumnSeparator',
         }
     )
+ 
+from pathlib import Path
 
-    tokens = scanner.scan(example)
-    ast = parser.parse(tokens)
-    print(ast)
+class Include:
+    node: Node
+
+    @staticmethod
+    def find(filename: str) -> Path:
+        path = Path(filename)
+        if not path.suffix:
+            path = path.with_suffix('.md')
+        if not path.exists():
+            raise Exception(f"ERROR: File {path} not found.")
+        return path
+
+    def __init__(self, filename: str) -> None:
+        self.path = self.find(filename) 
+        self.scanner = Scanner(Markdown.lexicon)
+        self.parser  = Parser (Markdown.grammar)
+
+    def parse(self) -> Generator[Node, None, None]: 
+        with self.path.open(encoding='utf-8') as file:
+            for token in self.scanner.scan(file):
+                self.parser.push(token)
+            yield from self.parser.flush()
+
+if __name__ == '__main__':
+    include = Include('example')
+    for node in include.parse():
+        print(node)

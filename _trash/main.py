@@ -139,7 +139,7 @@ class Include:
         self.path = self.find(filename) 
     
         self.scanner = Scanner(Lexicon({
-            
+            'STAR': Rule(r'\*')
         }))
 
         self.parser = Parser(Grammar([ 
@@ -157,3 +157,5 @@ if __name__ == '__main__':
     include = Include('example')
     node = include.parse()
     print(node) 
+
+

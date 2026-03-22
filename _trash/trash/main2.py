@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Sequence
 from collections import deque
-from luthor.scanning import Token
+from luthor.scanner import Token
 
 class Node:
     type: str

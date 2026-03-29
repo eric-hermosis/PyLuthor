@@ -1,16 +1,17 @@
-![Discarded](../assets/logo.png)
-[Figure 1:](figure:logo) This is a caption for a figure.
+# PyLuthor
+
+![Figure](../assets/logo.png)
+> [Figure 1:](figure:logo) This is a caption for a figure.
 
 Figure [1](figure:logo) shows something, and this is a cite [Eric H, 2026](@eric2026latex).
 
 This is a `code` block:
 
-```
-def function(x,y z):
+```python
+def function(x,y,z):
     return y*z + x**2
 ```
 
- 
 Labeled math is accepted:
 
 $$
@@ -30,6 +31,6 @@ with $p = 0$. Here is a table:
 | --------   | ---------- |
 | Cell $x=1$ | Cell *a*   |
 | Cell $x=2$ | Cell **b** |
-[Table 1](table:results) this is a caption with $LaTeX$.
+> [Table 1](table:results) this is a caption with $LaTeX$.
  
 This is a reference of table [1](table:results).

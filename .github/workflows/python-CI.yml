@@ -16,6 +16,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+        with:
+          pandoc-version: '3.1.11.1' 
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -28,8 +34,8 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-#      - name: Type check with mypy
-#        run: poetry run mypy luthor
+      - name: Type check with mypy
+        run: poetry run mypy luthor
 
       - name: Test with pytest
         run: |

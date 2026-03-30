@@ -3,7 +3,7 @@
 ![Figure](../assets/logo.png)
 > [Figure 1:](figure:logo) This is a caption for a figure.
 
-Figure [1](figure:logo) shows something, and this is a cite [Eric H, 2026](@eric2026latex).
+Figure [1](figure:logo) shows something, and this is a cite ([Eric H, 2026](@eric2026latex)) and this a multi cite ([Eric H, 2026](@eric2026latex); [Hermosis, 2026](@eric2027markdown))
 
 This is a `code` block:
 

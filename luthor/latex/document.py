@@ -21,7 +21,7 @@ class Document:
         for directive in preamble:
             if isinstance(directive, str):
                 self.preamble.append(Command(directive))
-            if isinstance(directive, tuple):
+            elif isinstance(directive, tuple):
                 self.preamble.append(Command(*directive))
             elif isinstance(directive, Command):
                 self.preamble.append(directive)

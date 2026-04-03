@@ -33,7 +33,7 @@ def test_implicit_commands():
         ("title", {"Markdown Example"}),
         ("author", {"Eric Hermosis"}),
     ], [
-        ("maketitle"),  
+        "maketitle",  
         ("include", {"README"}), 
         ("bibliography", {"references"}) 
     ]

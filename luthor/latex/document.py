@@ -3,6 +3,7 @@ from typing import Protocol
 from typing import Generator
 from typing import Sequence
 from typing import List
+from typing import Tuple 
 from luthor.latex.command import Command
 
 class Directive(Protocol):
@@ -15,9 +16,28 @@ class Document:
     preamble: List[Directive]
     body: List[Directive]
 
-    def __init__(self, preamble: Sequence[Directive] | None = None, body: Sequence[Directive] | None = None) -> None:
-        self.preamble = list(preamble) if preamble else []
-        self.body = list(body) if body else []
+    def __init__(self, preamble: Sequence[str | Tuple | Directive] | None = None, body: Sequence[Tuple | Directive] | None = None) -> None:
+        self.preamble = []
+        for directive in preamble:
+            if isinstance(directive, str):
+                self.preamble.append(Command(directive))
+            if isinstance(directive, tuple):
+                self.preamble.append(Command(*directive))
+            elif isinstance(directive, Command):
+                self.preamble.append(directive)
+            else:
+                raise TypeError(f"Expected a tuple or Command, got {type(directive).__name__}")
+
+        self.body = []
+        for directive in body:
+            if isinstance(directive, str):
+                self.body.append(Command(directive))
+            elif isinstance(directive, tuple):
+                self.body.append(Command(*directive))
+            elif isinstance(directive, Command):
+                self.body.append(directive)
+            else:
+                raise TypeError(f"Expected a tuple or Command, got {type(directive).__name__}")
 
     def forward(self) -> Generator[Command, None, None]:
         for directive in self.preamble:

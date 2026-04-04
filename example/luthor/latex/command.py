@@ -8,7 +8,7 @@ class Command:
     arguments: List[Set[str] | Sequence[str]]
 
     def __init__(self, name: str, *arguments: Set[str] | Sequence[str]) -> None:
-        self.name = name
+        self.name = name.lstrip("\\")
         self.arguments = []
 
         for index, argument in enumerate(arguments):

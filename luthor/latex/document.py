@@ -18,7 +18,7 @@ class Document:
 
     def __init__(self, preamble: Sequence[str | Tuple | Directive] | None = None, body: Sequence[Tuple | Directive] | None = None) -> None:
         self.preamble = []
-        for directive in preamble:
+        for directive in preamble or []:
             if isinstance(directive, str):
                 self.preamble.append(Command(directive))
             elif isinstance(directive, tuple):
@@ -29,7 +29,7 @@ class Document:
                 raise TypeError(f"Expected a tuple or Command, got {type(directive).__name__}")
 
         self.body = []
-        for directive in body:
+        for directive in body or []:
             if isinstance(directive, str):
                 self.body.append(Command(directive))
             elif isinstance(directive, tuple):

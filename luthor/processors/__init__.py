@@ -22,15 +22,23 @@ CUSTOM_MARKDOWN_TO_LATEX = Pipeline([
     Regex("Resolve Cross-references", 
                 r'\[[^\]]+\]\(((?:table|figure|equation):[^)]+)\)', 
                 r'\\ref{\1}'),
-
-    Regex("Resolve Citations", 
-                r'\[[^\]]+\]\(@([^)]+)\)', 
-                r'\\cite{\1}'), 
-
+ 
+    Regex("Parenthetical Dual Citation",
+                r'\(\s*\[[^\]]+\]\(@([^)]+)\)\s*[;,]\s*\[[^\]]+\]\(@([^)]+)\)\s*\)',
+                r'\\cite{\1, \2}'),
+ 
+    Regex("Parenthetical Single Citation",
+                r'\(\s*\[[^\]]+\]\(@([^)]+)\)\s*\)',
+                r'\\cite{\1}'),
+ 
+    Regex("Narrative Citation",
+                r'\[([^\]]+)\]\(@([^)]+)\)',
+                r'\1 \\cite{\2}'),
+ 
     Regex("Merge Citations",
             r'\\cite\{([^}]+)\}\s*[;,]\s*\\cite\{([^}]+)\}',
             r'\\cite{\1, \2}'),
-
+ 
     Regex("Strip Citation Parentheses",
                 r'\(\\cite\{([^}]+)\}\)',
                 r'\\cite{\1}')

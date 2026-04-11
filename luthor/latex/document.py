@@ -16,7 +16,7 @@ class Document:
     preamble: List[Directive]
     body: List[Directive]
 
-    def __init__(self, preamble: Sequence[str | Tuple | Directive] | None = None, body: Sequence[Tuple | Directive] | None = None) -> None:
+    def __init__(self, preamble: Sequence[str | Tuple | Directive] | None = None, body: Sequence[str | Tuple | Directive] | None = None) -> None:
         self.preamble = []
         for directive in preamble or []:
             if isinstance(directive, str):

@@ -12,34 +12,34 @@ if __name__ == '__main__':
 
     document = Document(
         preamble=[  
-            Command("documentclass", ["12pt"], {"article"}),
-            Command("usepackage", ["spanish","provide=*"], {"babel"}),
-            Command("usepackage", ["utf8"], {"inputenc"}),
-            Command("usepackage", ["T1"], {"fontenc"}),
-            Command("usepackage", {"lmodern"}),
-            Command("usepackage", {"amsmath"}),
-            Command("usepackage", {"amssymb"}),
-            Command("usepackage", {"hyperref"}),
-            Command("usepackage", {"cite"}),
-            Command("usepackage", {"graphicx"}), 
-            Command("usepackage", {"longtable"}),
-            Command("usepackage", {"booktabs"}), 
-            Command("usepackage", ["font=small","labelfont=bf","margin=0.5cm"], {"caption"}),
-            Command("usepackage", ["paper=a4paper", "top=3.5cm", "bottom=3.5cm", "left=3.5cm", "right=3.5cm"], {"geometry"}), 
-            Command("setlength", {"\\parindent"}, {"0pt"}),
-            Command("setlength", {"\\parskip"}, {"1em"}),
-            Command("title", {"Markdown Example"}),
-            Command("author", {"Eric Hermosis"}),
-            Command("date", {"\\today"}),  
+            ("documentclass", ["12pt"], {"article"}),
+            ("usepackage", ["spanish","provide=*"], {"babel"}),
+            ("usepackage", ["utf8"], {"inputenc"}),
+            ("usepackage", ["T1"], {"fontenc"}),
+            ("usepackage", {"lmodern"}),
+            ("usepackage", {"amsmath"}),
+            ("usepackage", {"amssymb"}),
+            ("usepackage", {"hyperref"}),
+            ("usepackage", {"cite"}),
+            ("usepackage", {"graphicx"}), 
+            ("usepackage", {"longtable"}),
+            ("usepackage", {"booktabs"}), 
+            ("usepackage", ["font=small","labelfont=bf","margin=0.5cm"], {"caption"}),
+            ("usepackage", ["paper=a4paper", "top=3.5cm", "bottom=3.5cm", "left=3.5cm", "right=3.5cm"], {"geometry"}), 
+            ("setlength", {"\\parindent"}, {"0pt"}),
+            ("setlength", {"\\parskip"}, {"1em"}),
+            ("title", {"Markdown Example"}),
+            ("author", {"Eric Hermosis"}),
+            ("date", {"\\today"}),  
         ], 
 
         body=[
-            Command("maketitle"),  
-            Command("include", {"chapter/index"}),
-            Command("bibliographystyle", {"plain"}), 
-            Command("bibliography", {"references"}) 
+            ("maketitle"),  
+            ("include", {"chapter/index"}),
+            ("bibliographystyle", {"plain"}), 
+            ("bibliography", {"references"}) 
         ]
     ) 
  
     compiler = Compiler(filename="output.pdf", builddir="build") 
-    compiler.compile(document)
+    compiler.transpile(document)
